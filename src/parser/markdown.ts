@@ -4,7 +4,9 @@ import type { Task, TaskMode } from '../types.js';
 const TASK_LINE_RE =
   /^-\s+\[[ x]\]\s+\[id:\s*([^\]]+)\]\s+\[(auto|review)\]\s*(?:\(depends:\s*([^)]+)\)\s*)?(.+)$/;
 
-function parseLine(line: string): Task | null {
+const PHASE_RE = /^##\s+(.+)/;
+
+function parseLine(line: string, currentPhase: string | undefined): Task | null {
   const match = line.trim().match(TASK_LINE_RE);
   if (!match) return null;
 
@@ -33,14 +35,26 @@ function parseLine(line: string): Task | null {
     mode: mode as TaskMode,
     status: 'pending',
     dependencies,
+    phase: currentPhase,
   };
 }
 
 export function parseMarkdownString(content: string): Task[] {
-  return content
-    .split('\n')
-    .map(parseLine)
-    .filter((t): t is Task => t !== null);
+  const tasks: Task[] = [];
+  let currentPhase: string | undefined;
+
+  for (const line of content.split('\n')) {
+    const phaseMatch = line.match(PHASE_RE);
+    if (phaseMatch) {
+      currentPhase = phaseMatch[1].trim();
+      continue;
+    }
+
+    const task = parseLine(line, currentPhase);
+    if (task) tasks.push(task);
+  }
+
+  return tasks;
 }
 
 export async function parseMarkdownFile(filePath: string): Promise<Task[]> {

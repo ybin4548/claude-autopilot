@@ -15,6 +15,7 @@ export interface Task {
   mode: TaskMode;
   status: TaskStatus;
   dependencies: string[];
+  phase?: string;
   branch?: string;
   prNumber?: number;
   attempts?: number;
