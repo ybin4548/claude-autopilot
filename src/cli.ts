@@ -3,28 +3,18 @@
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { parseMarkdownFile } from './parser/markdown.js';
-import { parseGithubIssues, type GhRunner as GhParserRunner } from './parser/github.js';
+import { parseGithubIssues } from './parser/github.js';
 import { validatePlan } from './validator/plan-validator.js';
 import { runPlan, type OrchestratorDeps } from './orchestrator.js';
 import { loadState, saveState, createInitialState } from './state/state.js';
 import { defaultCommandRunner } from './validator/validator.js';
+import { loadConfig } from './config/loader.js';
+import { consoleLogger } from './logger.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AutopilotConfig, Task, AutopilotState } from './types.js';
+import type { AutopilotConfig, Task } from './types.js';
 
 const STATE_DIR = join(homedir(), '.claude-autopilot');
-
-const DEFAULT_CONFIG: AutopilotConfig = {
-  defaultMode: 'auto',
-  codeReview: { strategy: 'ai', maxRevisions: 3 },
-  merge: { strategy: 'auto', method: 'squash' },
-  git: { baseBranch: 'dev', branchPrefix: 'autopilot/' },
-  parallel: { maxConcurrent: 3, useContextSync: false },
-  validation: { typecheck: true, test: true, build: false, maxRetries: 3 },
-  rateLimit: { healthCheckInterval: 60, autoResume: true },
-  system: { preventSleep: true },
-  source: { type: 'markdown', githubLabel: 'autopilot' },
-};
 
 interface ParsedArgs {
   command: 'run' | 'status' | 'resume';
@@ -80,6 +70,7 @@ function makeDeps(): OrchestratorDeps {
       const result = await ghRunner(['auth', 'status'], process.cwd());
       return result.exitCode === 0;
     },
+    logger: consoleLogger,
   };
 }
 
@@ -94,14 +85,17 @@ const STATUS_ICONS: Record<string, string> = {
 
 async function commandRun(parsed: ParsedArgs): Promise<void> {
   const cwd = process.cwd();
+  const config = await loadConfig(cwd);
+  const log = consoleLogger;
+
   let tasks: Task[];
 
   if (parsed.github) {
     const ghRunner = makeShellRunner('gh');
     tasks = await parseGithubIssues(
       parsed.github,
-      DEFAULT_CONFIG.source.githubLabel,
-      DEFAULT_CONFIG.defaultMode,
+      config.source.githubLabel,
+      config.defaultMode,
       cwd,
       ghRunner,
     );
@@ -113,11 +107,7 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   }
 
   const report = validatePlan(tasks);
-  console.log(`\n📋 Plan Review\n`);
-  console.log(`  ✅ Pass: ${report.passCount}`);
-  console.log(`  ⚠️  Warn: ${report.warnCount}`);
-  console.log(`  ❌ Fail: ${report.failCount}`);
-  console.log(`  Score: ${report.score}%\n`);
+  log.planReview(report.passCount, report.warnCount, report.failCount, report.score);
 
   for (const v of report.validations) {
     if (v.verdict !== 'pass') {
@@ -139,18 +129,20 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
+  console.log(`⚙️  Config: validation.typecheck=${config.validation.typecheck}, test=${config.validation.test}, build=${config.validation.build}`);
+  console.log(`⚙️  Config: merge.method=${config.merge.method}, git.baseBranch=${config.git.baseBranch}\n`);
+
   const state = createInitialState(
     parsed.planFile ?? parsed.github ?? 'unknown',
     runnableTasks.map((t) => t.id),
   );
   await saveState(state, STATE_DIR);
 
-  console.log(`▶️  Running ${runnableTasks.length} tasks...\n`);
-  const results = await runPlan(runnableTasks, DEFAULT_CONFIG, state, STATE_DIR, cwd, makeDeps());
+  const results = await runPlan(runnableTasks, config, state, STATE_DIR, cwd, makeDeps());
 
   const completed = results.filter((r) => r.outcome === 'completed').length;
   const failed = results.filter((r) => r.outcome === 'failed').length;
-  console.log(`\n🎉 Done! ${completed} completed, ${failed} failed.`);
+  log.done(completed, failed);
 }
 
 async function commandStatus(): Promise<void> {
@@ -178,6 +170,7 @@ async function commandStatus(): Promise<void> {
 
 async function commandResume(): Promise<void> {
   const cwd = process.cwd();
+  const config = await loadConfig(cwd);
   const state = await loadState(STATE_DIR);
   if (!state) {
     console.log('No saved state to resume from.');
@@ -200,8 +193,8 @@ async function commandResume(): Promise<void> {
     const ghRunner = makeShellRunner('gh');
     allTasks = await parseGithubIssues(
       planSource,
-      DEFAULT_CONFIG.source.githubLabel,
-      DEFAULT_CONFIG.defaultMode,
+      config.source.githubLabel,
+      config.defaultMode,
       cwd,
       ghRunner,
     );
@@ -213,11 +206,11 @@ async function commandResume(): Promise<void> {
   const tasksToRun = allTasks.filter((t) => pendingIds.has(t.id));
 
   console.log(`▶️  Resuming ${tasksToRun.length} tasks...\n`);
-  const results = await runPlan(tasksToRun, DEFAULT_CONFIG, state, STATE_DIR, cwd, makeDeps());
+  const results = await runPlan(tasksToRun, config, state, STATE_DIR, cwd, makeDeps());
 
   const completed = results.filter((r) => r.outcome === 'completed').length;
   const failed = results.filter((r) => r.outcome === 'failed').length;
-  console.log(`\n🎉 Done! ${completed} completed, ${failed} failed.`);
+  consoleLogger.done(completed, failed);
 }
 
 async function main(): Promise<void> {
