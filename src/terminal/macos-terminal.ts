@@ -18,8 +18,7 @@ function escapeForAppleScript(str: string): string {
 export class MacosTerminalAdapter implements TerminalAdapter {
   name = 'terminal-app';
   private markerDir = join(tmpdir(), 'claude-autopilot-markers');
-  private panes = new Map<string, { markerPath: string; tabIndex: number }>();
-  private tabCounter = 0;
+  private panes = new Map<string, { markerPath: string; cwd: string; taskId: string }>();
 
   async openPane(taskId: string, cwd: string): Promise<string> {
     const paneId = `pane-${taskId}-${Date.now()}`;
@@ -27,22 +26,7 @@ export class MacosTerminalAdapter implements TerminalAdapter {
 
     await mkdir(this.markerDir, { recursive: true });
 
-    // Create a new tab and get its tab index
-    const script = `
-      tell application "Terminal"
-        activate
-        do script "cd '${cwd.replace(/'/g, "'\\''")}' && clear && echo '🔄 [${taskId}] Starting...'"
-        set tabIndex to index of front window
-        return tabIndex
-      end tell
-    `;
-    const { stdout } = await exec('osascript', ['-e', script]);
-    const tabIndex = parseInt(stdout.trim(), 10) || 1;
-
-    this.tabCounter++;
-    this.panes.set(paneId, { markerPath, tabIndex });
-    await sleep(500);
-
+    this.panes.set(paneId, { markerPath, cwd, taskId });
     return paneId;
   }
 
@@ -50,15 +34,18 @@ export class MacosTerminalAdapter implements TerminalAdapter {
     const pane = this.panes.get(paneId);
     if (!pane) return;
 
-    const escaped = escapeForAppleScript(command);
+    const cdCmd = `cd '${pane.cwd.replace(/'/g, "'\\''")}'`;
+    const fullCommand = `${cdCmd} && echo '🔄 [${pane.taskId}] Starting...' && ${command}; echo $? > '${pane.markerPath}'`;
+    const escaped = escapeForAppleScript(fullCommand);
 
-    // Use the specific window index to send the command to the correct tab
     const script = `
       tell application "Terminal"
-        do script "${escaped}" in window ${pane.tabIndex}
+        activate
+        do script "${escaped}"
       end tell
     `;
     await exec('osascript', ['-e', script]);
+    await sleep(300);
   }
 
   async waitForExit(paneId: string): Promise<number> {

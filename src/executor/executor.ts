@@ -90,38 +90,25 @@ export async function executeTaskVisual(
   await mkdir(PROMPT_DIR, { recursive: true });
 
   const promptPath = join(PROMPT_DIR, `${task.id}-prompt.txt`);
-  const markerPath = join(PROMPT_DIR, `${task.id}-marker.done`);
-
   const prompt = buildPrompt(task, cwd);
   await writeFile(promptPath, prompt, 'utf-8');
 
   const paneId = await terminal.openPane(task.id, cwd);
 
-  // Run claude in interactive mode: pipe the prompt, then user can see and interact
-  // When claude exits, write exit code to marker file
-  const command = `cat '${promptPath}' | claude; echo $? > '${markerPath}'`;
+  const command = `cat '${promptPath}' | claude`;
   await terminal.runInPane(paneId, command);
 
-  // Poll for completion via marker file
-  while (true) {
-    await new Promise((r) => setTimeout(r, 3000));
-    try {
-      const content = await readFile(markerPath, 'utf-8');
-      const exitCode = parseInt(content.trim(), 10) || 0;
+  const exitCode = await terminal.waitForExit(paneId);
 
-      try { await unlink(promptPath); } catch { /* */ }
-      try { await unlink(markerPath); } catch { /* */ }
+  try { await unlink(promptPath); } catch { /* */ }
+  await terminal.closePane(paneId);
 
-      return {
-        stdout: '',
-        stderr: '',
-        exitCode,
-        rateLimited: false,
-      };
-    } catch {
-      // marker not yet created — still running
-    }
-  }
+  return {
+    stdout: '',
+    stderr: '',
+    exitCode,
+    rateLimited: false,
+  };
 }
 
 export async function executeTask(
