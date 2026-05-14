@@ -95,7 +95,7 @@ export async function executeTaskVisual(
 
   const paneId = await terminal.openPane(task.id, cwd);
 
-  const command = `cat '${promptPath}' | claude`;
+  const command = `claude -p < '${promptPath}'`;
   await terminal.runInPane(paneId, command);
 
   const exitCode = await terminal.waitForExit(paneId);
