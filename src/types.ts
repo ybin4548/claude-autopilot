@@ -121,3 +121,10 @@ export interface PublishResult {
   prUrl: string;
   merged: boolean;
 }
+
+export type PRReviewState = 'APPROVED' | 'CHANGES_REQUESTED' | 'PENDING';
+
+export type TaskResult =
+  | { outcome: 'completed'; prNumber: number; prUrl: string; merged: boolean }
+  | { outcome: 'failed'; error: string }
+  | { outcome: 'rate-limited' };
