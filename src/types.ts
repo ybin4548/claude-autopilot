@@ -74,6 +74,9 @@ export interface AutopilotConfig {
     type: PlanSource;
     githubLabel: string;
   };
+  visual: {
+    terminal: 'auto' | 'tmux' | 'terminal-app' | 'iterm';
+  };
 }
 
 export interface AutopilotState {
