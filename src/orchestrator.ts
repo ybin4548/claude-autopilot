@@ -6,7 +6,7 @@ import type {
   ParallelGroup,
 } from './types.js';
 import { buildParallelGroups } from './queue/queue.js';
-import { executeTask } from './executor/executor.js';
+import { executeTask, cleanupVisualPane } from './executor/executor.js';
 import { validateCode, type CommandRunner } from './validator/validator.js';
 import { publish, type PublisherDeps } from './publisher/publisher.js';
 import { pollPRStatus, type GhRunner } from './reviewer/reviewer.js';
@@ -71,6 +71,19 @@ async function runSingleTask(
     log.taskValidating(task.id, activeSteps);
 
     const validation = await validateCode(config, cwd, deps.commandRunner);
+
+    const diffStep = validation.steps.find((s) => s.step === 'diff');
+    if (diffStep && !diffStep.passed) {
+      log.taskValidated(task.id, true);
+      log.taskPublishing(task.id, 'skipped — no changes (already complete)');
+      if (deps.terminal) await cleanupVisualPane(task.id, deps.terminal);
+      await updateTaskState(stateDir, task.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+      return { outcome: 'completed', prNumber: 0, prUrl: '', merged: false };
+    }
+
     log.taskValidated(task.id, validation.passed);
 
     if (!validation.passed) {
@@ -104,6 +117,8 @@ async function runSingleTask(
         );
       }
     }
+
+    if (deps.terminal) await cleanupVisualPane(task.id, deps.terminal);
 
     await updateTaskState(stateDir, task.id, {
       status: 'completed',

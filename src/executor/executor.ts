@@ -82,6 +82,8 @@ export function executeClaudeP(
 
 const PROMPT_DIR = join(tmpdir(), 'claude-autopilot-prompts');
 
+const openPanes = new Map<string, string>();
+
 export async function executeTaskVisual(
   task: Task,
   cwd: string,
@@ -93,7 +95,11 @@ export async function executeTaskVisual(
   const prompt = buildPrompt(task, cwd);
   await writeFile(promptPath, prompt, 'utf-8');
 
-  const paneId = await terminal.openPane(task.id, cwd);
+  let paneId = openPanes.get(task.id);
+  if (!paneId) {
+    paneId = await terminal.openPane(task.id, cwd);
+    openPanes.set(task.id, paneId);
+  }
 
   const command = `claude -p --dangerously-skip-permissions < '${promptPath}'`;
   await terminal.runInPane(paneId, command);
@@ -101,7 +107,6 @@ export async function executeTaskVisual(
   const exitCode = await terminal.waitForExit(paneId);
 
   try { await unlink(promptPath); } catch { /* */ }
-  await terminal.closePane(paneId);
 
   return {
     stdout: '',
@@ -109,6 +114,15 @@ export async function executeTaskVisual(
     exitCode,
     rateLimited: false,
   };
+}
+
+export function cleanupVisualPane(taskId: string, terminal: TerminalAdapter): Promise<void> {
+  const paneId = openPanes.get(taskId);
+  if (paneId) {
+    openPanes.delete(taskId);
+    return terminal.closePane(paneId);
+  }
+  return Promise.resolve();
 }
 
 export async function executeTask(
