@@ -36,6 +36,21 @@ function makeConfig(): AutopilotConfig {
   };
 }
 
+const noopLogger = {
+  planReview() {},
+  groupStart() {},
+  taskExecuting() {},
+  taskExecuted() {},
+  taskValidating() {},
+  taskValidated() {},
+  taskPublishing() {},
+  taskPublished() {},
+  taskFailed() {},
+  taskRateLimited() {},
+  rateLimitRecovered() {},
+  done() {},
+};
+
 function makeDeps(): OrchestratorDeps {
   return {
     publisher: {
@@ -45,12 +60,14 @@ function makeDeps(): OrchestratorDeps {
     commandRunner: async () => ({ output: 'src/file.ts', exitCode: 0 }),
     ghRunner: async () => ({ stdout: 'APPROVED', exitCode: 0 }),
     healthCheck: async () => true,
+    logger: noopLogger,
   };
 }
 
 describe('runPlan — integration', () => {
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'autopilot-orch-'));
+    vi.restoreAllMocks();
   });
 
   afterEach(async () => {
