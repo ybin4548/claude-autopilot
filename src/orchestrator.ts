@@ -113,9 +113,14 @@ export async function runPlan(
 
   for (const group of groups) {
     const groupResults = await Promise.all(
-      group.map((task) =>
-        runSingleTask(task, config, state, stateDir, cwd, deps),
-      ),
+      group.map(async (task) => {
+        try {
+          return await runSingleTask(task, config, state, stateDir, cwd, deps);
+        } catch (err) {
+          await updateTaskState(stateDir, task.id, { status: 'failed' });
+          return { outcome: 'failed' as const, error: String(err) };
+        }
+      }),
     );
     results.push(...groupResults);
   }
