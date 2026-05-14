@@ -94,3 +94,23 @@ export interface TaskState {
 }
 
 export type ParallelGroup = Task[];
+
+export interface ExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  rateLimited: boolean;
+}
+
+export type ValidationStep = 'diff' | 'typecheck' | 'test' | 'build';
+
+export interface ValidationStepResult {
+  step: ValidationStep;
+  passed: boolean;
+  output: string;
+}
+
+export interface CodeValidationResult {
+  passed: boolean;
+  steps: ValidationStepResult[];
+}
