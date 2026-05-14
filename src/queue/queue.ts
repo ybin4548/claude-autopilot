@@ -43,7 +43,46 @@ export function topologicalSort(tasks: Task[]): Task[] {
   return sorted;
 }
 
+function groupByPhase(tasks: Task[]): Task[][] {
+  const phases: Task[][] = [];
+  let currentPhase: string | undefined = undefined;
+  let currentGroup: Task[] = [];
+
+  for (const task of tasks) {
+    if (task.phase !== currentPhase && currentGroup.length > 0) {
+      phases.push(currentGroup);
+      currentGroup = [];
+    }
+    currentPhase = task.phase;
+    currentGroup.push(task);
+  }
+
+  if (currentGroup.length > 0) {
+    phases.push(currentGroup);
+  }
+
+  return phases;
+}
+
 export function buildParallelGroups(tasks: Task[]): ParallelGroup[] {
+  const hasPhases = tasks.some((t) => t.phase);
+
+  if (!hasPhases) {
+    return buildDependencyGroups(tasks);
+  }
+
+  const phaseGroups = groupByPhase(tasks);
+  const allGroups: ParallelGroup[] = [];
+
+  for (const phaseTasks of phaseGroups) {
+    const groups = buildDependencyGroups(phaseTasks);
+    allGroups.push(...groups);
+  }
+
+  return allGroups;
+}
+
+function buildDependencyGroups(tasks: Task[]): ParallelGroup[] {
   const sorted = topologicalSort(tasks);
   const completedAt = new Map<string, number>();
   const groups: ParallelGroup[] = [];
@@ -66,4 +105,16 @@ export function buildParallelGroups(tasks: Task[]): ParallelGroup[] {
   }
 
   return groups;
+}
+
+export function applyMaxConcurrent(groups: ParallelGroup[], maxConcurrent: number): ParallelGroup[] {
+  const result: ParallelGroup[] = [];
+
+  for (const group of groups) {
+    for (let i = 0; i < group.length; i += maxConcurrent) {
+      result.push(group.slice(i, i + maxConcurrent));
+    }
+  }
+
+  return result;
 }
