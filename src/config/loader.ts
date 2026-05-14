@@ -16,6 +16,7 @@ const DEFAULT_CONFIG: AutopilotConfig = {
   rateLimit: { healthCheckInterval: 60, autoResume: true },
   system: { preventSleep: true },
   source: { type: 'markdown', githubLabel: 'autopilot' },
+  visual: { terminal: 'auto' },
 };
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | null> {
