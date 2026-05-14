@@ -1,5 +1,9 @@
 import { spawn } from 'node:child_process';
+import { writeFile, unlink, mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { Task, ExecutionResult, AutopilotConfig } from '../types.js';
+import type { TerminalAdapter } from '../terminal/adapter.js';
 
 const RATE_LIMIT_PATTERNS = [
   /rate limit/i,
@@ -76,11 +80,57 @@ export function executeClaudeP(
   });
 }
 
+const PROMPT_DIR = join(tmpdir(), 'claude-autopilot-prompts');
+
+export async function executeTaskVisual(
+  task: Task,
+  cwd: string,
+  terminal: TerminalAdapter,
+): Promise<ExecutionResult> {
+  await mkdir(PROMPT_DIR, { recursive: true });
+
+  const promptPath = join(PROMPT_DIR, `${task.id}.txt`);
+  const outputPath = join(PROMPT_DIR, `${task.id}.out`);
+  const stderrPath = join(PROMPT_DIR, `${task.id}.err`);
+
+  const prompt = buildPrompt(task, cwd);
+  await writeFile(promptPath, prompt, 'utf-8');
+
+  const paneId = await terminal.openPane(task.id, cwd);
+
+  const command = `claude -p --output-format text < ${promptPath} > ${outputPath} 2> ${stderrPath}`;
+  await terminal.runInPane(paneId, command);
+
+  const exitCode = await terminal.waitForExit(paneId);
+
+  let stdout = '';
+  let stderr = '';
+  try { stdout = await readFile(outputPath, 'utf-8'); } catch { /* */ }
+  try { stderr = await readFile(stderrPath, 'utf-8'); } catch { /* */ }
+
+  try { await unlink(promptPath); } catch { /* */ }
+  try { await unlink(outputPath); } catch { /* */ }
+  try { await unlink(stderrPath); } catch { /* */ }
+
+  await terminal.closePane(paneId);
+
+  return {
+    stdout,
+    stderr,
+    exitCode,
+    rateLimited: isRateLimited(stderr),
+  };
+}
+
 export async function executeTask(
   task: Task,
   config: Pick<AutopilotConfig, 'git'>,
   cwd: string = process.cwd(),
+  terminal?: TerminalAdapter,
 ): Promise<ExecutionResult> {
+  if (terminal) {
+    return executeTaskVisual(task, cwd, terminal);
+  }
   const prompt = buildPrompt(task, cwd);
   return executeClaudeP(prompt, { cwd });
 }
