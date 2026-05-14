@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { writeFile, unlink, stat } from 'node:fs/promises';
+import { unlink, mkdir, readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -11,21 +11,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function escapeForAppleScript(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 export class ItermAdapter implements TerminalAdapter {
   name = 'iterm';
   private markerDir = join(tmpdir(), 'claude-autopilot-markers');
   private panes = new Map<string, { markerPath: string }>();
 
-  private markerPath(paneId: string): string {
-    return join(this.markerDir, `${paneId}.done`);
-  }
-
   async openPane(taskId: string, cwd: string): Promise<string> {
     const paneId = `pane-${taskId}-${Date.now()}`;
-    const marker = this.markerPath(paneId);
-    this.panes.set(paneId, { markerPath: marker });
+    const markerPath = join(this.markerDir, `${paneId}.done`);
+    this.panes.set(paneId, { markerPath });
 
-    await exec('mkdir', ['-p', this.markerDir]);
+    await mkdir(this.markerDir, { recursive: true });
 
     const script = `
       tell application "iTerm2"
@@ -33,27 +33,23 @@ export class ItermAdapter implements TerminalAdapter {
         tell current window
           create tab with default profile
           tell current session of current tab
-            write text "cd ${cwd.replace(/'/g, "'\\''")}"
-            set name to "${taskId}"
+            write text "cd '${cwd.replace(/'/g, "'\\''")}' && clear && echo '🔄 [${taskId}] Starting...'"
           end tell
         end tell
       end tell
     `;
     await exec('osascript', ['-e', script]);
+    await sleep(500);
 
     return paneId;
   }
 
   async runInPane(paneId: string, command: string): Promise<void> {
-    const pane = this.panes.get(paneId);
-    if (!pane) return;
-
-    const wrappedCommand = `${command}; echo $? > ${pane.markerPath}`;
-
+    const escaped = escapeForAppleScript(command);
     const script = `
       tell application "iTerm2"
         tell current session of current tab of current window
-          write text "${wrappedCommand.replace(/"/g, '\\"')}"
+          write text "${escaped}"
         end tell
       end tell
     `;
@@ -65,12 +61,10 @@ export class ItermAdapter implements TerminalAdapter {
     if (!pane) return 1;
 
     while (true) {
-      await sleep(2000);
+      await sleep(3000);
       try {
-        await stat(pane.markerPath);
-        const { readFile } = await import('node:fs/promises');
-        const code = (await readFile(pane.markerPath, 'utf-8')).trim();
-        return parseInt(code, 10) || 0;
+        const content = await readFile(pane.markerPath, 'utf-8');
+        return parseInt(content.trim(), 10) || 0;
       } catch {
         // marker not yet created
       }

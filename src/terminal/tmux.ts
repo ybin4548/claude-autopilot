@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { readFile, unlink } from 'node:fs/promises';
 import type { TerminalAdapter } from './adapter.js';
 
 const exec = promisify(execFile);
@@ -13,11 +14,11 @@ function sleep(ms: number): Promise<void> {
 export class TmuxAdapter implements TerminalAdapter {
   name = 'tmux';
   private paneCount = 0;
+  private markers = new Map<string, string>();
 
   async openPane(taskId: string, cwd: string): Promise<string> {
     if (this.paneCount === 0) {
       await exec('tmux', ['new-session', '-d', '-s', SESSION_NAME, '-c', cwd]);
-      await exec('tmux', ['send-keys', '-t', SESSION_NAME, `printf '\\033]2;${taskId}\\033\\\\'`, 'Enter']);
       this.paneCount++;
       return `${SESSION_NAME}:0.0`;
     }
@@ -25,10 +26,8 @@ export class TmuxAdapter implements TerminalAdapter {
     await exec('tmux', ['split-window', '-t', SESSION_NAME, '-c', cwd]);
     await exec('tmux', ['select-layout', '-t', SESSION_NAME, 'tiled']);
     const { stdout } = await exec('tmux', ['display-message', '-t', SESSION_NAME, '-p', '#{pane_id}']);
-    const paneId = stdout.trim();
-    await exec('tmux', ['send-keys', '-t', paneId, `printf '\\033]2;${taskId}\\033\\\\'`, 'Enter']);
     this.paneCount++;
-    return paneId;
+    return stdout.trim();
   }
 
   async runInPane(paneId: string, command: string): Promise<void> {
@@ -36,6 +35,17 @@ export class TmuxAdapter implements TerminalAdapter {
   }
 
   async waitForExit(paneId: string): Promise<number> {
+    const marker = this.markers.get(paneId);
+    if (marker) {
+      while (true) {
+        await sleep(3000);
+        try {
+          const content = await readFile(marker, 'utf-8');
+          return parseInt(content.trim(), 10) || 0;
+        } catch { /* */ }
+      }
+    }
+
     while (true) {
       await sleep(2000);
       try {
@@ -55,6 +65,11 @@ export class TmuxAdapter implements TerminalAdapter {
   }
 
   async closePane(paneId: string): Promise<void> {
+    const marker = this.markers.get(paneId);
+    if (marker) {
+      try { await unlink(marker); } catch { /* */ }
+      this.markers.delete(paneId);
+    }
     try {
       await exec('tmux', ['kill-pane', '-t', paneId]);
       this.paneCount--;
@@ -66,5 +81,6 @@ export class TmuxAdapter implements TerminalAdapter {
       await exec('tmux', ['kill-session', '-t', SESSION_NAME]);
     } catch { /* session doesn't exist */ }
     this.paneCount = 0;
+    this.markers.clear();
   }
 }

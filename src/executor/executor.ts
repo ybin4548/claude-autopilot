@@ -89,37 +89,39 @@ export async function executeTaskVisual(
 ): Promise<ExecutionResult> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
-  const promptPath = join(PROMPT_DIR, `${task.id}.txt`);
-  const outputPath = join(PROMPT_DIR, `${task.id}.out`);
-  const stderrPath = join(PROMPT_DIR, `${task.id}.err`);
+  const promptPath = join(PROMPT_DIR, `${task.id}-prompt.txt`);
+  const markerPath = join(PROMPT_DIR, `${task.id}-marker.done`);
 
   const prompt = buildPrompt(task, cwd);
   await writeFile(promptPath, prompt, 'utf-8');
 
   const paneId = await terminal.openPane(task.id, cwd);
 
-  const command = `claude -p --output-format text < ${promptPath} > ${outputPath} 2> ${stderrPath}`;
+  // Run claude in interactive mode: pipe the prompt, then user can see and interact
+  // When claude exits, write exit code to marker file
+  const command = `cat '${promptPath}' | claude; echo $? > '${markerPath}'`;
   await terminal.runInPane(paneId, command);
 
-  const exitCode = await terminal.waitForExit(paneId);
+  // Poll for completion via marker file
+  while (true) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const content = await readFile(markerPath, 'utf-8');
+      const exitCode = parseInt(content.trim(), 10) || 0;
 
-  let stdout = '';
-  let stderr = '';
-  try { stdout = await readFile(outputPath, 'utf-8'); } catch { /* */ }
-  try { stderr = await readFile(stderrPath, 'utf-8'); } catch { /* */ }
+      try { await unlink(promptPath); } catch { /* */ }
+      try { await unlink(markerPath); } catch { /* */ }
 
-  try { await unlink(promptPath); } catch { /* */ }
-  try { await unlink(outputPath); } catch { /* */ }
-  try { await unlink(stderrPath); } catch { /* */ }
-
-  await terminal.closePane(paneId);
-
-  return {
-    stdout,
-    stderr,
-    exitCode,
-    rateLimited: isRateLimited(stderr),
-  };
+      return {
+        stdout: '',
+        stderr: '',
+        exitCode,
+        rateLimited: false,
+      };
+    } catch {
+      // marker not yet created — still running
+    }
+  }
 }
 
 export async function executeTask(
