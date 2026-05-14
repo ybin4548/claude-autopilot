@@ -44,7 +44,7 @@ export function executeClaudeP(
   options: { cwd: string; allowedTools?: string[] } = { cwd: process.cwd() },
 ): Promise<ExecutionResult> {
   return new Promise((resolve) => {
-    const args = ['-p', '--output-format', 'text'];
+    const args = ['-p', '--output-format', 'text', '--dangerously-skip-permissions'];
 
     if (options.allowedTools) {
       for (const tool of options.allowedTools) {
@@ -95,7 +95,7 @@ export async function executeTaskVisual(
 
   const paneId = await terminal.openPane(task.id, cwd);
 
-  const command = `claude -p < '${promptPath}'`;
+  const command = `claude -p --dangerously-skip-permissions < '${promptPath}'`;
   await terminal.runInPane(paneId, command);
 
   const exitCode = await terminal.waitForExit(paneId);

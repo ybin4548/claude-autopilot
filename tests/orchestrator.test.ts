@@ -67,7 +67,7 @@ function makeDeps(): OrchestratorDeps {
 describe('runPlan — integration', () => {
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'autopilot-orch-'));
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(async () => {
