@@ -5,7 +5,7 @@ import type {
   TaskResult,
   ParallelGroup,
 } from './types.js';
-import { buildParallelGroups } from './queue/queue.js';
+import { buildParallelGroups, applyMaxConcurrent } from './queue/queue.js';
 import { executeTask, cleanupVisualPane } from './executor/executor.js';
 import { validateCode, type CommandRunner } from './validator/validator.js';
 import { publish, type PublisherDeps } from './publisher/publisher.js';
@@ -31,6 +31,7 @@ async function runSingleTask(
   stateDir: string,
   cwd: string,
   deps: OrchestratorDeps,
+  changedFiles: string[],
 ): Promise<TaskResult> {
   const maxRetries = config.validation.maxRetries;
   const log = deps.logger;
@@ -42,7 +43,7 @@ async function runSingleTask(
     });
 
     log.taskExecuting(task.id, attempt, maxRetries);
-    const execResult = await executeTask(task, config, cwd, deps.terminal);
+    const execResult = await executeTask(task, config, cwd, deps.terminal, changedFiles);
 
     if (execResult.rateLimited) {
       log.taskRateLimited(task.id);
@@ -148,9 +149,11 @@ export async function runPlan(
   deps: OrchestratorDeps,
 ): Promise<TaskResult[]> {
   const runnableTasks = tasks.filter((t) => t.status === 'pending');
-  const groups: ParallelGroup[] = buildParallelGroups(runnableTasks);
+  const rawGroups = buildParallelGroups(runnableTasks);
+  const groups: ParallelGroup[] = applyMaxConcurrent(rawGroups, config.parallel.maxConcurrent);
   const results: TaskResult[] = [];
   const log = deps.logger;
+  const changedFiles: string[] = [];
 
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i];
@@ -159,7 +162,7 @@ export async function runPlan(
     const groupResults = await Promise.all(
       group.map(async (task) => {
         try {
-          return await runSingleTask(task, config, state, stateDir, cwd, deps);
+          return await runSingleTask(task, config, state, stateDir, cwd, deps, [...changedFiles]);
         } catch (err) {
           log.taskFailed(task.id, String(err));
           await updateTaskState(stateDir, task.id, { status: 'failed' });
@@ -168,6 +171,15 @@ export async function runPlan(
       }),
     );
     results.push(...groupResults);
+
+    // Collect changed files from this group for next group's context
+    try {
+      const result = await deps.commandRunner('git', ['diff', '--name-only', 'HEAD~1'], cwd);
+      const files = result.output.trim().split('\n').filter(Boolean);
+      for (const f of files) {
+        if (!changedFiles.includes(f)) changedFiles.push(f);
+      }
+    } catch { /* */ }
   }
 
   return results;
