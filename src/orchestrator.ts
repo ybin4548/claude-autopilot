@@ -13,6 +13,7 @@ import { pollPRStatus, type GhRunner } from './reviewer/reviewer.js';
 import { updateTaskState } from './state/state.js';
 import { waitForRateLimit, type HealthCheckFn } from './rate-limiter/limiter.js';
 import type { Logger } from './logger.js';
+import type { TerminalAdapter } from './terminal/adapter.js';
 
 export interface OrchestratorDeps {
   publisher: PublisherDeps;
@@ -20,6 +21,7 @@ export interface OrchestratorDeps {
   ghRunner: GhRunner;
   healthCheck: HealthCheckFn;
   logger: Logger;
+  terminal?: TerminalAdapter;
 }
 
 async function runSingleTask(
@@ -40,7 +42,7 @@ async function runSingleTask(
     });
 
     log.taskExecuting(task.id, attempt, maxRetries);
-    const execResult = await executeTask(task, config, cwd);
+    const execResult = await executeTask(task, config, cwd, deps.terminal);
 
     if (execResult.rateLimited) {
       log.taskRateLimited(task.id);
