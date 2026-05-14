@@ -10,9 +10,11 @@ import { loadState, saveState, createInitialState } from './state/state.js';
 import { defaultCommandRunner } from './validator/validator.js';
 import { loadConfig } from './config/loader.js';
 import { consoleLogger } from './logger.js';
+import { createTerminalAdapter } from './terminal/detect.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AutopilotConfig, Task } from './types.js';
+import type { TerminalAdapter } from './terminal/adapter.js';
 
 const STATE_DIR = join(homedir(), '.claude-autopilot');
 
@@ -20,30 +22,34 @@ interface ParsedArgs {
   command: 'run' | 'status' | 'resume';
   planFile?: string;
   github?: string;
+  noVisual?: boolean;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
-  const command = args[0] as ParsedArgs['command'];
+  const noVisual = args.includes('--no-visual');
+  const filtered = args.filter((a) => a !== '--no-visual');
+  const command = filtered[0] as ParsedArgs['command'];
 
   if (!command || !['run', 'status', 'resume'].includes(command)) {
     console.log('Usage:');
     console.log('  claude-autopilot run <plan.md>');
     console.log('  claude-autopilot run --github owner/repo');
+    console.log('  claude-autopilot run --no-visual <plan.md>');
     console.log('  claude-autopilot status');
     console.log('  claude-autopilot resume');
     process.exit(1);
   }
 
   if (command === 'run') {
-    const githubIdx = args.indexOf('--github');
+    const githubIdx = filtered.indexOf('--github');
     if (githubIdx !== -1) {
-      return { command, github: args[githubIdx + 1] };
+      return { command, github: filtered[githubIdx + 1], noVisual };
     }
-    return { command, planFile: args[1] };
+    return { command, planFile: filtered[1], noVisual };
   }
 
-  return { command };
+  return { command, noVisual };
 }
 
 function makeShellRunner(cmd: string) {
@@ -59,7 +65,7 @@ function makeShellRunner(cmd: string) {
   };
 }
 
-function makeDeps(): OrchestratorDeps {
+function makeDeps(terminal?: TerminalAdapter): OrchestratorDeps {
   const gitRunner = makeShellRunner('git');
   const ghRunner = makeShellRunner('gh');
   return {
@@ -71,6 +77,7 @@ function makeDeps(): OrchestratorDeps {
       return result.exitCode === 0;
     },
     logger: consoleLogger,
+    terminal,
   };
 }
 
@@ -129,6 +136,14 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
     process.exit(1);
   }
 
+  let terminal: TerminalAdapter | undefined;
+  if (!parsed.noVisual) {
+    terminal = await createTerminalAdapter(config);
+    console.log(`🖥️  Visual mode: ${terminal.name}`);
+  } else {
+    console.log(`🖥️  Visual mode: disabled (--no-visual)`);
+  }
+
   console.log(`⚙️  Config: validation.typecheck=${config.validation.typecheck}, test=${config.validation.test}, build=${config.validation.build}`);
   console.log(`⚙️  Config: merge.method=${config.merge.method}, git.baseBranch=${config.git.baseBranch}\n`);
 
@@ -138,7 +153,9 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   );
   await saveState(state, STATE_DIR);
 
-  const results = await runPlan(runnableTasks, config, state, STATE_DIR, cwd, makeDeps());
+  const results = await runPlan(runnableTasks, config, state, STATE_DIR, cwd, makeDeps(terminal));
+
+  if (terminal) await terminal.cleanup();
 
   const completed = results.filter((r) => r.outcome === 'completed').length;
   const failed = results.filter((r) => r.outcome === 'failed').length;
@@ -205,8 +222,14 @@ async function commandResume(): Promise<void> {
   const pendingIds = new Set(pendingTasks.map((t) => t.id));
   const tasksToRun = allTasks.filter((t) => pendingIds.has(t.id));
 
+  let terminal: TerminalAdapter | undefined;
+  terminal = await createTerminalAdapter(config);
+  console.log(`🖥️  Visual mode: ${terminal.name}`);
+
   console.log(`▶️  Resuming ${tasksToRun.length} tasks...\n`);
-  const results = await runPlan(tasksToRun, config, state, STATE_DIR, cwd, makeDeps());
+  const results = await runPlan(tasksToRun, config, state, STATE_DIR, cwd, makeDeps(terminal));
+
+  if (terminal) await terminal.cleanup();
 
   const completed = results.filter((r) => r.outcome === 'completed').length;
   const failed = results.filter((r) => r.outcome === 'failed').length;

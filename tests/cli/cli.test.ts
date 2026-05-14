@@ -10,22 +10,27 @@ describe('parseArgs', () => {
 
   it('run <file> 을 파싱한다', () => {
     const result = parseArgs(['node', 'cli', 'run', 'plan.md']);
-    expect(result).toEqual({ command: 'run', planFile: 'plan.md' });
+    expect(result).toMatchObject({ command: 'run', planFile: 'plan.md', noVisual: false });
   });
 
   it('run --github owner/repo 를 파싱한다', () => {
     const result = parseArgs(['node', 'cli', 'run', '--github', 'owner/repo']);
-    expect(result).toEqual({ command: 'run', github: 'owner/repo' });
+    expect(result).toMatchObject({ command: 'run', github: 'owner/repo', noVisual: false });
+  });
+
+  it('run --no-visual을 파싱한다', () => {
+    const result = parseArgs(['node', 'cli', 'run', '--no-visual', 'plan.md']);
+    expect(result).toMatchObject({ command: 'run', planFile: 'plan.md', noVisual: true });
   });
 
   it('status 명령을 파싱한다', () => {
     const result = parseArgs(['node', 'cli', 'status']);
-    expect(result).toEqual({ command: 'status' });
+    expect(result).toMatchObject({ command: 'status' });
   });
 
   it('resume 명령을 파싱한다', () => {
     const result = parseArgs(['node', 'cli', 'resume']);
-    expect(result).toEqual({ command: 'resume' });
+    expect(result).toMatchObject({ command: 'resume' });
   });
 
   it('잘못된 명령은 exit한다', () => {
