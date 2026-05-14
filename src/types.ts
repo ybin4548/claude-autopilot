@@ -114,3 +114,10 @@ export interface CodeValidationResult {
   passed: boolean;
   steps: ValidationStepResult[];
 }
+
+export interface PublishResult {
+  branch: string;
+  prNumber: number;
+  prUrl: string;
+  merged: boolean;
+}
