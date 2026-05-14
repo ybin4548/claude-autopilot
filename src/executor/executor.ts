@@ -12,7 +12,7 @@ const RATE_LIMIT_PATTERNS = [
   /quota exceeded/i,
 ];
 
-function buildPrompt(task: Task, cwd: string): string {
+function buildPrompt(task: Task, cwd: string, changedFiles?: string[]): string {
   const lines = [
     `You are implementing a task in the project at: ${cwd}`,
     '',
@@ -22,6 +22,14 @@ function buildPrompt(task: Task, cwd: string): string {
 
   if (task.detail) {
     lines.push(`Detail: ${task.detail}`);
+  }
+
+  if (changedFiles && changedFiles.length > 0) {
+    lines.push(
+      '',
+      'Context — files changed by previous tasks:',
+      ...changedFiles.map((f) => `  - ${f}`),
+    );
   }
 
   lines.push(
@@ -88,11 +96,12 @@ export async function executeTaskVisual(
   task: Task,
   cwd: string,
   terminal: TerminalAdapter,
+  changedFiles?: string[],
 ): Promise<ExecutionResult> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
   const promptPath = join(PROMPT_DIR, `${task.id}-prompt.txt`);
-  const prompt = buildPrompt(task, cwd);
+  const prompt = buildPrompt(task, cwd, changedFiles);
   await writeFile(promptPath, prompt, 'utf-8');
 
   let paneId = openPanes.get(task.id);
@@ -130,11 +139,12 @@ export async function executeTask(
   config: Pick<AutopilotConfig, 'git'>,
   cwd: string = process.cwd(),
   terminal?: TerminalAdapter,
+  changedFiles?: string[],
 ): Promise<ExecutionResult> {
   if (terminal) {
-    return executeTaskVisual(task, cwd, terminal);
+    return executeTaskVisual(task, cwd, terminal, changedFiles);
   }
-  const prompt = buildPrompt(task, cwd);
+  const prompt = buildPrompt(task, cwd, changedFiles);
   return executeClaudeP(prompt, { cwd });
 }
 
