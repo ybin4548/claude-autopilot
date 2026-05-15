@@ -33,6 +33,21 @@ describe('parseArgs', () => {
     expect(result).toMatchObject({ command: 'resume' });
   });
 
+  it('config 명령을 파싱한다', () => {
+    const result = parseArgs(['node', 'cli', 'config']);
+    expect(result).toMatchObject({ command: 'config' });
+  });
+
+  it('config --set을 파싱한다', () => {
+    const result = parseArgs(['node', 'cli', 'config', '--set', 'merge.method=rebase']);
+    expect(result).toMatchObject({ command: 'config', configSet: 'merge.method=rebase' });
+  });
+
+  it('init 명령을 파싱한다', () => {
+    const result = parseArgs(['node', 'cli', 'init']);
+    expect(result).toMatchObject({ command: 'init' });
+  });
+
   it('잘못된 명령은 exit한다', () => {
     expect(() => parseArgs(['node', 'cli', 'invalid'])).toThrow('process.exit');
   });
