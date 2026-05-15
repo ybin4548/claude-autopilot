@@ -8,11 +8,10 @@ const exec = promisify(execFile);
 
 const AUTOPILOT_CONFIG_DIR = join(homedir(), '.claude-autopilot');
 const AUTOPILOT_CONFIG_PATH = join(AUTOPILOT_CONFIG_DIR, 'config.json');
-const CLAUDE_CONFIG_DIR = join(homedir(), '.claude');
-const CLAUDE_SETTINGS_PATH = join(CLAUDE_CONFIG_DIR, 'settings.json');
+const CLAUDE_JSON_PATH = join(homedir(), '.claude.json');
 
-interface ClaudeSettings {
-  mcpServers?: Record<string, { command: string; args?: string[] }>;
+interface ClaudeJson {
+  mcpServers?: Record<string, { type: string; command: string; args: string[]; env: Record<string, string> }>;
   [key: string]: unknown;
 }
 
@@ -35,7 +34,6 @@ async function getBinPath(): Promise<string> {
 }
 
 export async function initMcpServer(): Promise<void> {
-  // Step 1: Config wizard if not configured
   const hasConfig = await fileExists(AUTOPILOT_CONFIG_PATH);
   if (!hasConfig) {
     const { runConfigWizard } = await import('../config/wizard.js');
@@ -44,31 +42,31 @@ export async function initMcpServer(): Promise<void> {
     console.log('Config already exists at ~/.claude-autopilot/config.json\n');
   }
 
-  // Step 2: Register MCP server
-  await mkdir(CLAUDE_CONFIG_DIR, { recursive: true });
-
-  let settings: ClaudeSettings = {};
+  let claudeJson: ClaudeJson = {};
   try {
-    const raw = await readFile(CLAUDE_SETTINGS_PATH, 'utf-8');
-    settings = JSON.parse(raw);
+    const raw = await readFile(CLAUDE_JSON_PATH, 'utf-8');
+    claudeJson = JSON.parse(raw);
   } catch {
-    // file doesn't exist, start fresh
+    // file doesn't exist
   }
 
-  if (!settings.mcpServers) {
-    settings.mcpServers = {};
+  if (!claudeJson.mcpServers) {
+    claudeJson.mcpServers = {};
   }
 
   const binPath = await getBinPath();
 
-  if (settings.mcpServers['claude-autopilot']) {
+  if (claudeJson.mcpServers['claude-autopilot']) {
     console.log('MCP server already registered.\n');
   } else {
-    settings.mcpServers['claude-autopilot'] = {
+    claudeJson.mcpServers['claude-autopilot'] = {
+      type: 'stdio',
       command: binPath,
+      args: [],
+      env: {},
     };
 
-    await writeFile(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+    await writeFile(CLAUDE_JSON_PATH, JSON.stringify(claudeJson, null, 2), 'utf-8');
 
     console.log('MCP server registered.');
     console.log(`  Binary: ${binPath}\n`);
