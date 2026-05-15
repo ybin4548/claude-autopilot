@@ -282,8 +282,8 @@ async function main(): Promise<void> {
   }
 }
 
-const isDirectRun = process.argv[1]?.endsWith('cli.js') || process.argv[1]?.endsWith('cli.ts');
-if (isDirectRun) {
+const isTestEnv = process.env['VITEST'] === 'true' || process.env['NODE_ENV'] === 'test';
+if (!isTestEnv) {
   main().catch((err) => {
     console.error('Fatal error:', err);
     process.exit(1);
