@@ -19,10 +19,11 @@ import type { TerminalAdapter } from './terminal/adapter.js';
 const STATE_DIR = join(homedir(), '.claude-autopilot');
 
 interface ParsedArgs {
-  command: 'run' | 'status' | 'resume';
+  command: 'run' | 'status' | 'resume' | 'config' | 'init';
   planFile?: string;
   github?: string;
   noVisual?: boolean;
+  configSet?: string;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -31,14 +32,25 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const filtered = args.filter((a) => a !== '--no-visual');
   const command = filtered[0] as ParsedArgs['command'];
 
-  if (!command || !['run', 'status', 'resume'].includes(command)) {
+  if (!command || !['run', 'status', 'resume', 'config', 'init'].includes(command)) {
     console.log('Usage:');
     console.log('  claude-autopilot run <plan.md>');
     console.log('  claude-autopilot run --github owner/repo');
     console.log('  claude-autopilot run --no-visual <plan.md>');
     console.log('  claude-autopilot status');
     console.log('  claude-autopilot resume');
+    console.log('  claude-autopilot config');
+    console.log('  claude-autopilot config --set key=value');
+    console.log('  claude-autopilot init');
     process.exit(1);
+  }
+
+  if (command === 'config') {
+    const setIdx = filtered.indexOf('--set');
+    if (setIdx !== -1) {
+      return { command, configSet: filtered[setIdx + 1] };
+    }
+    return { command };
   }
 
   if (command === 'run') {
@@ -236,6 +248,16 @@ async function commandResume(): Promise<void> {
   consoleLogger.done(completed, failed);
 }
 
+async function commandConfig(parsed: ParsedArgs): Promise<void> {
+  if (parsed.configSet) {
+    const { setConfigValue } = await import('./config/wizard.js');
+    await setConfigValue(parsed.configSet);
+  } else {
+    const { runConfigWizard } = await import('./config/wizard.js');
+    await runConfigWizard();
+  }
+}
+
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
 
@@ -249,6 +271,14 @@ async function main(): Promise<void> {
     case 'resume':
       await commandResume();
       break;
+    case 'config':
+      await commandConfig(parsed);
+      break;
+    case 'init': {
+      const { initMcpServer } = await import('./mcp/init.js');
+      await initMcpServer();
+      break;
+    }
   }
 }
 
