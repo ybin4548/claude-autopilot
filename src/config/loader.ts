@@ -10,13 +10,15 @@ const DEFAULT_CONFIG: AutopilotConfig = {
   defaultMode: 'auto',
   codeReview: { strategy: 'ai', maxRevisions: 3 },
   merge: { strategy: 'auto', method: 'squash' },
-  git: { baseBranch: 'dev', branchPrefix: 'autopilot/' },
+  git: { baseBranch: 'dev', branchPrefix: 'autopilot/', commitGranularity: 'logical', commitLanguage: 'english' },
   parallel: { maxConcurrent: 3, useContextSync: false },
   validation: { typecheck: true, test: true, build: false, maxRetries: 3 },
   rateLimit: { healthCheckInterval: 60, autoResume: true },
   system: { preventSleep: true },
   source: { type: 'markdown', githubLabel: 'autopilot' },
   visual: { terminal: 'auto' },
+  notifications: { channel: 'system', webhookUrl: '' },
+  suggestions: { strategy: 'log' },
 };
 
 async function readJsonFile(path: string): Promise<Record<string, unknown> | null> {
