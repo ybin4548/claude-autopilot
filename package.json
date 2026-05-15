@@ -4,7 +4,8 @@
   "description": "Fully automated development orchestrator — from plan to PR with zero human intervention",
   "type": "module",
   "bin": {
-    "claude-autopilot": "./dist/cli.js"
+    "claude-autopilot": "./dist/cli.js",
+    "claude-autopilot-mcp": "./dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsup",
@@ -13,7 +14,8 @@
     "test:watch": "vitest",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "postinstall": "claude-autopilot init"
   },
   "keywords": [
     "claude-code",
@@ -43,5 +45,8 @@
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
   }
 }
