@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "postinstall": "claude-autopilot init"
   },
   "keywords": [
     "claude-code",
