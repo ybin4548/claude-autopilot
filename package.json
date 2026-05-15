@@ -1,6 +1,6 @@
 {
   "name": "@ybin4548/claude-autopilot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fully automated development orchestrator — from plan to PR with zero human intervention",
   "type": "module",
   "bin": {
