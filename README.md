@@ -32,7 +32,7 @@ Feed it a plan (markdown checklist or GitHub Issues), and it will implement each
 ## Installation
 
 ```bash
-npm install -g claude-autopilot
+npm install -g claude-auto-pilot
 ```
 
 ## Quick Start
@@ -53,19 +53,19 @@ npm install -g claude-autopilot
 ### 2. Run
 
 ```bash
-claude-autopilot run plan.md
+claude-auto-pilot run plan.md
 ```
 
 ### 3. Check progress
 
 ```bash
-claude-autopilot status
+claude-auto-pilot status
 ```
 
 ### 4. Resume interrupted runs
 
 ```bash
-claude-autopilot resume
+claude-auto-pilot resume
 ```
 
 ## Task Format
@@ -85,7 +85,7 @@ claude-autopilot resume
 ## GitHub Issues Mode
 
 ```bash
-claude-autopilot run --github owner/repo
+claude-auto-pilot run --github owner/repo
 ```
 
 - Issues with `autopilot` label are treated as tasks
@@ -125,7 +125,7 @@ src/
 
 - **Rate limit**: detect from stderr → save state → health-check loop → auto-resume
 - **Retry**: validation failure → re-execute up to 3 times
-- **State persistence**: `~/.claude-autopilot/state.json` — resume anytime with `claude-autopilot resume`
+- **State persistence**: `~/.claude-autopilot/state.json` — resume anytime with `claude-auto-pilot resume`
 
 ## Requirements
 

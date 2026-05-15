@@ -27,10 +27,10 @@ async function fileExists(path: string): Promise<boolean> {
 
 async function getBinPath(): Promise<string> {
   try {
-    const { stdout } = await exec('which', ['claude-autopilot-mcp']);
+    const { stdout } = await exec('which', ['claude-auto-pilot-mcp']);
     return stdout.trim();
   } catch {
-    return 'claude-autopilot-mcp';
+    return 'claude-auto-pilot-mcp';
   }
 }
 
@@ -61,10 +61,10 @@ export async function initMcpServer(): Promise<void> {
 
   const binPath = await getBinPath();
 
-  if (settings.mcpServers['claude-autopilot']) {
+  if (settings.mcpServers['claude-auto-pilot']) {
     console.log('MCP server already registered.\n');
   } else {
-    settings.mcpServers['claude-autopilot'] = {
+    settings.mcpServers['claude-auto-pilot'] = {
       command: binPath,
     };
 

@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 
 function runCli(args: string[], cwd: string): Promise<{ stdout: string; exitCode: number }> {
   return new Promise((resolve) => {
-    const child = spawn('claude-autopilot', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('claude-auto-pilot', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
     child.stdout.on('data', (c: Buffer) => chunks.push(c));
     child.stderr.on('data', (c: Buffer) => chunks.push(c));
@@ -18,8 +18,8 @@ function runCli(args: string[], cwd: string): Promise<{ stdout: string; exitCode
 }
 
 const server = new McpServer({
-  name: 'claude-autopilot',
-  version: '0.1.0',
+  name: 'claude-auto-pilot',
+  version: '1.0.0',
 });
 
 server.tool(
