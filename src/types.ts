@@ -53,6 +53,8 @@ export interface AutopilotConfig {
   git: {
     baseBranch: string;
     branchPrefix: string;
+    commitGranularity: 'file' | 'logical' | 'single';
+    commitLanguage: 'english' | 'korean';
   };
   parallel: {
     maxConcurrent: number;
@@ -77,6 +79,13 @@ export interface AutopilotConfig {
   };
   visual: {
     terminal: 'auto' | 'tmux' | 'terminal-app' | 'iterm';
+  };
+  notifications: {
+    channel: 'system' | 'slack' | 'discord' | 'none';
+    webhookUrl: string;
+  };
+  suggestions: {
+    strategy: 'log' | 'ask' | 'auto';
   };
 }
 

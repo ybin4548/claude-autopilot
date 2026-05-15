@@ -12,13 +12,20 @@ const RATE_LIMIT_PATTERNS = [
   /quota exceeded/i,
 ];
 
-function buildPrompt(task: Task, cwd: string, changedFiles?: string[]): string {
+function buildPrompt(task: Task, cwd: string, changedFiles?: string[], projectContext?: string): string {
   const lines = [
     `You are implementing a task in the project at: ${cwd}`,
+  ];
+
+  if (projectContext) {
+    lines.push('', 'Project context:', projectContext);
+  }
+
+  lines.push(
     '',
     `Task ID: ${task.id}`,
     `Description: ${task.description}`,
-  ];
+  );
 
   if (task.detail) {
     lines.push(`Detail: ${task.detail}`);
@@ -38,6 +45,11 @@ function buildPrompt(task: Task, cwd: string, changedFiles?: string[]): string {
     '- Implement only what is described above',
     '- Do not modify unrelated files',
     '- Ensure the code compiles without errors',
+    '',
+    'If you encounter any of these situations, output the corresponding tag:',
+    '[PLAN_CHANGE] When the plan needs modification (e.g., missing prerequisite)',
+    '[SUGGESTION] When you find an improvement idea (e.g., shared utility)',
+    '[BLOCKER] When you cannot proceed (e.g., missing API key, missing dependency)',
   );
 
   return lines.join('\n');
@@ -97,11 +109,12 @@ export async function executeTaskVisual(
   cwd: string,
   terminal: TerminalAdapter,
   changedFiles?: string[],
+  projectContext?: string,
 ): Promise<ExecutionResult> {
   await mkdir(PROMPT_DIR, { recursive: true });
 
   const promptPath = join(PROMPT_DIR, `${task.id}-prompt.txt`);
-  const prompt = buildPrompt(task, cwd, changedFiles);
+  const prompt = buildPrompt(task, cwd, changedFiles, projectContext);
   await writeFile(promptPath, prompt, 'utf-8');
 
   let paneId = openPanes.get(task.id);
@@ -140,11 +153,12 @@ export async function executeTask(
   cwd: string = process.cwd(),
   terminal?: TerminalAdapter,
   changedFiles?: string[],
+  projectContext?: string,
 ): Promise<ExecutionResult> {
   if (terminal) {
-    return executeTaskVisual(task, cwd, terminal, changedFiles);
+    return executeTaskVisual(task, cwd, terminal, changedFiles, projectContext);
   }
-  const prompt = buildPrompt(task, cwd, changedFiles);
+  const prompt = buildPrompt(task, cwd, changedFiles, projectContext);
   return executeClaudeP(prompt, { cwd });
 }
 

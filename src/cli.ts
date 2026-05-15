@@ -19,11 +19,12 @@ import type { TerminalAdapter } from './terminal/adapter.js';
 const STATE_DIR = join(homedir(), '.claude-autopilot');
 
 interface ParsedArgs {
-  command: 'run' | 'status' | 'resume' | 'config' | 'init';
+  command: 'run' | 'status' | 'resume' | 'config' | 'init' | 'stop' | 'pause' | 'learn';
   planFile?: string;
   github?: string;
   noVisual?: boolean;
   configSet?: string;
+  force?: boolean;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -32,17 +33,23 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const filtered = args.filter((a) => a !== '--no-visual');
   const command = filtered[0] as ParsedArgs['command'];
 
-  if (!command || !['run', 'status', 'resume', 'config', 'init'].includes(command)) {
+  if (!command || !['run', 'status', 'resume', 'config', 'init', 'stop', 'pause', 'learn'].includes(command)) {
     console.log('Usage:');
     console.log('  claude-autopilot run <plan.md>');
     console.log('  claude-autopilot run --github owner/repo');
     console.log('  claude-autopilot run --no-visual <plan.md>');
     console.log('  claude-autopilot status');
     console.log('  claude-autopilot resume');
+    console.log('  claude-autopilot stop [--force]');
+    console.log('  claude-autopilot pause');
     console.log('  claude-autopilot config');
     console.log('  claude-autopilot config --set key=value');
     console.log('  claude-autopilot init');
     process.exit(1);
+  }
+
+  if (command === 'stop') {
+    return { command, force: filtered.includes('--force') };
   }
 
   if (command === 'config') {
@@ -102,7 +109,18 @@ const STATUS_ICONS: Record<string, string> = {
   skipped: '[SKIP]',
 };
 
+async function ensureConfig(): Promise<void> {
+  const configPath = join(homedir(), '.claude-autopilot', 'config.json');
+  try {
+    await import('node:fs/promises').then((fs) => fs.stat(configPath));
+  } catch {
+    const { runConfigWizard } = await import('./config/wizard.js');
+    await runConfigWizard();
+  }
+}
+
 async function commandRun(parsed: ParsedArgs): Promise<void> {
+  await ensureConfig();
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
   const log = consoleLogger;
@@ -135,13 +153,29 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   }
 
   if (report.failCount > 0) {
-    console.log('\nFix failed tasks before running. Skipping them.\n');
+    const failRatio = report.failCount / report.validations.length;
+    if (failRatio > 0.5) {
+      console.log(`\nExecution not recommended. Focus on making your plan more specific.`);
+    }
+    console.log('\nFailed tasks will be skipped.\n');
   }
 
   const runnableTasks = tasks.filter((t) => {
     const v = report.validations.find((val) => val.taskId === t.id);
     return v?.verdict !== 'fail';
   });
+
+  // y/n confirmation
+  if (runnableTasks.length > 0) {
+    const { createInterface } = await import('node:readline');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise<string>((res) => rl.question(`Proceed with ${runnableTasks.length} tasks? (y/n): `, res));
+    rl.close();
+    if (answer.trim().toLowerCase() !== 'y') {
+      console.log('Aborted.');
+      process.exit(0);
+    }
+  }
 
   if (runnableTasks.length === 0) {
     console.log('No runnable tasks. Exiting.');
@@ -159,6 +193,13 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   console.log(`Config: validation.typecheck=${config.validation.typecheck}, test=${config.validation.test}, build=${config.validation.build}`);
   console.log(`Config: merge.method=${config.merge.method}, git.baseBranch=${config.git.baseBranch}\n`);
 
+  const { writePid, removePid, setupSignalHandlers } = await import('./process.js');
+  await writePid();
+  setupSignalHandlers(
+    () => { console.log('Will stop after current task...'); },
+    () => { removePid().then(() => process.exit(1)); },
+  );
+
   const state = createInitialState(
     parsed.planFile ?? parsed.github ?? 'unknown',
     runnableTasks.map((t) => t.id),
@@ -168,9 +209,13 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   const results = await runPlan(runnableTasks, config, state, STATE_DIR, cwd, makeDeps(terminal));
 
   if (terminal) await terminal.cleanup();
+  await removePid();
 
   const completed = results.filter((r) => r.outcome === 'completed').length;
   const failed = results.filter((r) => r.outcome === 'failed').length;
+
+  const { notify } = await import('./feedback.js');
+  await notify(`Done! ${completed} completed, ${failed} failed.`, config.notifications.channel, config.notifications.webhookUrl);
   log.done(completed, failed);
 }
 
@@ -258,6 +303,33 @@ async function commandConfig(parsed: ParsedArgs): Promise<void> {
   }
 }
 
+async function commandStop(force: boolean): Promise<void> {
+  const { sendSignal, readPid } = await import('./process.js');
+  const pid = await readPid();
+  if (!pid) {
+    console.log('autopilot is not running.');
+    return;
+  }
+  if (force) {
+    await sendSignal('SIGKILL');
+    console.log(`Force stopped process ${pid}.`);
+  } else {
+    await sendSignal('SIGTERM');
+    console.log(`Graceful stop signal sent to process ${pid}.`);
+  }
+}
+
+async function commandPause(): Promise<void> {
+  const state = await loadState(STATE_DIR);
+  if (!state) {
+    console.log('No active run found.');
+    return;
+  }
+  (state as unknown as Record<string, unknown>)['paused'] = true;
+  await saveState(state, STATE_DIR);
+  console.log('Paused. Run "claude-autopilot resume" to continue.');
+}
+
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv);
 
@@ -277,6 +349,22 @@ async function main(): Promise<void> {
     case 'init': {
       const { initMcpServer } = await import('./mcp/init.js');
       await initMcpServer();
+      break;
+    }
+    case 'stop':
+      await commandStop(parsed.force ?? false);
+      break;
+    case 'pause':
+      await commandPause();
+      break;
+    case 'learn': {
+      const { learnProject } = await import('./profiler.js');
+      const profile = await learnProject(process.cwd());
+      console.log('Project profile saved.');
+      console.log(`  Language: ${profile.patterns.language}`);
+      console.log(`  Branch strategy: ${profile.patterns.branchStrategy}`);
+      console.log(`  Commit style: ${profile.patterns.commitStyle}`);
+      console.log(`  Test framework: ${profile.patterns.testFramework}`);
       break;
     }
   }

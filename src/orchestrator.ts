@@ -14,6 +14,8 @@ import { updateTaskState } from './state/state.js';
 import { waitForRateLimit, type HealthCheckFn } from './rate-limiter/limiter.js';
 import type { Logger } from './logger.js';
 import type { TerminalAdapter } from './terminal/adapter.js';
+import { parseFeedback, recordFeedback, notify } from './feedback.js';
+import { learnProject, loadProfile, profileToContext } from './profiler.js';
 
 export interface OrchestratorDeps {
   publisher: PublisherDeps;
@@ -32,6 +34,7 @@ async function runSingleTask(
   cwd: string,
   deps: OrchestratorDeps,
   changedFiles: string[],
+  projectContext: string,
 ): Promise<TaskResult> {
   const maxRetries = config.validation.maxRetries;
   const log = deps.logger;
@@ -43,7 +46,7 @@ async function runSingleTask(
     });
 
     log.taskExecuting(task.id, attempt, maxRetries);
-    const execResult = await executeTask(task, config, cwd, deps.terminal, changedFiles);
+    const execResult = await executeTask(task, config, cwd, deps.terminal, changedFiles, projectContext);
 
     if (execResult.rateLimited) {
       log.taskRateLimited(task.id);
@@ -64,6 +67,21 @@ async function runSingleTask(
     }
 
     log.taskExecuted(task.id, true);
+
+    // Parse and record feedback from execution output
+    const feedbacks = parseFeedback(task.id, execResult.stdout);
+    for (const fb of feedbacks) {
+      await recordFeedback(fb, cwd);
+      if (fb.type === 'blocker') {
+        await notify(`BLOCKER [${task.id}]: ${fb.message}`, config.notifications.channel, config.notifications.webhookUrl);
+        log.taskFailed(task.id, `Blocker: ${fb.message}`);
+        await updateTaskState(stateDir, task.id, { status: 'failed' });
+        return { outcome: 'failed', error: `Blocker: ${fb.message}` };
+      }
+      if (fb.type === 'plan-change') {
+        await notify(`Plan change [${task.id}]: ${fb.message}`, config.notifications.channel, config.notifications.webhookUrl);
+      }
+    }
 
     const activeSteps: string[] = ['diff'];
     if (config.validation.typecheck) activeSteps.push('typecheck');
@@ -121,6 +139,8 @@ async function runSingleTask(
 
     if (deps.terminal) await cleanupVisualPane(task.id, deps.terminal);
 
+    await notify(`Task "${task.id}" completed (PR #${publishResult.prNumber})`, config.notifications.channel, config.notifications.webhookUrl);
+
     await updateTaskState(stateDir, task.id, {
       status: 'completed',
       branch: publishResult.branch,
@@ -148,6 +168,13 @@ export async function runPlan(
   cwd: string,
   deps: OrchestratorDeps,
 ): Promise<TaskResult[]> {
+  // Learn project patterns
+  let projectContext = '';
+  try {
+    const profile = await loadProfile(cwd) ?? await learnProject(cwd);
+    projectContext = profileToContext(profile);
+  } catch { /* profiler may fail in test environments */ }
+
   const runnableTasks = tasks.filter((t) => t.status === 'pending');
   const rawGroups = buildParallelGroups(runnableTasks);
   const groups: ParallelGroup[] = applyMaxConcurrent(rawGroups, config.parallel.maxConcurrent);
@@ -162,7 +189,7 @@ export async function runPlan(
     const groupResults = await Promise.all(
       group.map(async (task) => {
         try {
-          return await runSingleTask(task, config, state, stateDir, cwd, deps, [...changedFiles]);
+          return await runSingleTask(task, config, state, stateDir, cwd, deps, [...changedFiles], projectContext);
         } catch (err) {
           log.taskFailed(task.id, String(err));
           await updateTaskState(stateDir, task.id, { status: 'failed' });

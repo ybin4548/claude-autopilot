@@ -65,6 +65,34 @@ const QUESTIONS: Question[] = [
     ],
   },
   {
+    key: 'git.commitGranularity',
+    prompt: 'Commit granularity?',
+    options: [
+      { value: 'file', label: 'One commit per file' },
+      { value: 'logical', label: 'Group related changes', recommended: true },
+      { value: 'single', label: 'One commit per task' },
+    ],
+  },
+  {
+    key: 'suggestions.strategy',
+    prompt: 'How to handle agent suggestions & ideas?',
+    options: [
+      { value: 'log', label: 'Just log them for later review', recommended: true },
+      { value: 'ask', label: 'Notify me and wait for approval' },
+      { value: 'auto', label: 'Apply automatically' },
+    ],
+  },
+  {
+    key: 'notifications.channel',
+    prompt: 'Notification channel?',
+    options: [
+      { value: 'system', label: 'macOS notification center', recommended: true },
+      { value: 'slack', label: 'Slack webhook' },
+      { value: 'discord', label: 'Discord webhook' },
+      { value: 'none', label: 'No notifications' },
+    ],
+  },
+  {
     key: 'system.preventSleep',
     prompt: 'Prevent sleep when lid is closed?',
     options: [

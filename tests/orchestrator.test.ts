@@ -18,8 +18,20 @@ vi.mock('../src/executor/executor.js', () => ({
     exitCode: 0,
     rateLimited: false,
   })),
+  cleanupVisualPane: vi.fn(async () => {}),
   buildPrompt: vi.fn(() => 'mock prompt'),
   isRateLimited: vi.fn(() => false),
+}));
+
+vi.mock('../src/profiler.js', () => ({
+  loadProfile: vi.fn(async () => null),
+  learnProject: vi.fn(async () => ({
+    project: '/tmp',
+    patterns: { language: 'JS', branchStrategy: 'simple', prTarget: 'dev', commitStyle: 'freeform', testFramework: 'none', testLocation: 'tests/' },
+    claudeMd: '',
+    learnedAt: new Date().toISOString(),
+  })),
+  profileToContext: vi.fn(() => ''),
 }));
 
 function makeConfig(): AutopilotConfig {
@@ -27,12 +39,15 @@ function makeConfig(): AutopilotConfig {
     defaultMode: 'auto',
     codeReview: { strategy: 'none', maxRevisions: 3 },
     merge: { strategy: 'auto', method: 'squash' },
-    git: { baseBranch: 'dev', branchPrefix: 'autopilot/' },
+    git: { baseBranch: 'dev', branchPrefix: 'autopilot/', commitGranularity: 'single', commitLanguage: 'english' },
     parallel: { maxConcurrent: 3, useContextSync: false },
     validation: { typecheck: false, test: false, build: false, maxRetries: 3 },
     rateLimit: { healthCheckInterval: 0.01, autoResume: true },
     system: { preventSleep: false },
     source: { type: 'markdown', githubLabel: 'autopilot' },
+    visual: { terminal: 'auto' },
+    notifications: { channel: 'none', webhookUrl: '' },
+    suggestions: { strategy: 'log' },
   };
 }
 
