@@ -33,7 +33,7 @@ export class ItermAdapter implements TerminalAdapter {
         tell current window
           create tab with default profile
           tell current session of current tab
-            write text "cd '${cwd.replace(/'/g, "'\\''")}' && clear && echo '🔄 [${taskId}] Starting...'"
+            write text "cd '${cwd.replace(/'/g, "'\\''")}' && clear && echo '[${taskId}] Starting...'"
           end tell
         end tell
       end tell

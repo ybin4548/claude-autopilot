@@ -41,7 +41,7 @@ export async function initMcpServer(): Promise<void> {
     const { runConfigWizard } = await import('../config/wizard.js');
     await runConfigWizard();
   } else {
-    console.log('⚙️  Config already exists at ~/.claude-autopilot/config.json\n');
+    console.log('Config already exists at ~/.claude-autopilot/config.json\n');
   }
 
   // Step 2: Register MCP server
@@ -62,7 +62,7 @@ export async function initMcpServer(): Promise<void> {
   const binPath = await getBinPath();
 
   if (settings.mcpServers['claude-autopilot']) {
-    console.log('✅ MCP server already registered.\n');
+    console.log('MCP server already registered.\n');
   } else {
     settings.mcpServers['claude-autopilot'] = {
       command: binPath,
@@ -70,11 +70,11 @@ export async function initMcpServer(): Promise<void> {
 
     await writeFile(CLAUDE_SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
 
-    console.log('✅ MCP server registered.');
-    console.log(`   Binary: ${binPath}\n`);
+    console.log('MCP server registered.');
+    console.log(`  Binary: ${binPath}\n`);
   }
 
-  console.log('🎉 Setup complete! Restart Claude Code to activate.\n');
+  console.log('Setup complete! Restart Claude Code to activate.\n');
   console.log('Available tools in Claude:');
   console.log('  - autopilot_run: Run a plan file');
   console.log('  - autopilot_status: Check progress');

@@ -94,12 +94,12 @@ function makeDeps(terminal?: TerminalAdapter): OrchestratorDeps {
 }
 
 const STATUS_ICONS: Record<string, string> = {
-  completed: '✅',
-  'in-progress': '🔄',
-  pending: '⏳',
-  failed: '❌',
-  interrupted: '⚠️',
-  skipped: '⏭️',
+  completed: '[DONE]',
+  'in-progress': '[....]',
+  pending: '[    ]',
+  failed: '[FAIL]',
+  interrupted: '[STOP]',
+  skipped: '[SKIP]',
 };
 
 async function commandRun(parsed: ParsedArgs): Promise<void> {
@@ -135,7 +135,7 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   }
 
   if (report.failCount > 0) {
-    console.log('\n⛔ Fix failed tasks before running. Skipping them.\n');
+    console.log('\nFix failed tasks before running. Skipping them.\n');
   }
 
   const runnableTasks = tasks.filter((t) => {
@@ -151,13 +151,13 @@ async function commandRun(parsed: ParsedArgs): Promise<void> {
   let terminal: TerminalAdapter | undefined;
   if (!parsed.noVisual) {
     terminal = await createTerminalAdapter(config);
-    console.log(`🖥️  Visual mode: ${terminal.name}`);
+    console.log(`Visual mode: ${terminal.name}`);
   } else {
-    console.log(`🖥️  Visual mode: disabled (--no-visual)`);
+    console.log(`Visual mode: disabled (--no-visual)`);
   }
 
-  console.log(`⚙️  Config: validation.typecheck=${config.validation.typecheck}, test=${config.validation.test}, build=${config.validation.build}`);
-  console.log(`⚙️  Config: merge.method=${config.merge.method}, git.baseBranch=${config.git.baseBranch}\n`);
+  console.log(`Config: validation.typecheck=${config.validation.typecheck}, test=${config.validation.test}, build=${config.validation.build}`);
+  console.log(`Config: merge.method=${config.merge.method}, git.baseBranch=${config.git.baseBranch}\n`);
 
   const state = createInitialState(
     parsed.planFile ?? parsed.github ?? 'unknown',
@@ -184,7 +184,7 @@ async function commandStatus(): Promise<void> {
   const completed = state.tasks.filter((t) => t.status === 'completed').length;
   const total = state.tasks.length;
 
-  console.log(`\n📊 claude-autopilot status\n`);
+  console.log(`\n[claude-autopilot status]\n`);
   console.log(`  Plan: ${state.planSource}`);
   console.log(`  Progress: ${completed}/${total} tasks completed`);
   console.log(`  Rate limit: ${state.rateLimited ? 'RATE LIMITED' : 'OK'}\n`);
@@ -236,9 +236,9 @@ async function commandResume(): Promise<void> {
 
   let terminal: TerminalAdapter | undefined;
   terminal = await createTerminalAdapter(config);
-  console.log(`🖥️  Visual mode: ${terminal.name}`);
+  console.log(`Visual mode: ${terminal.name}`);
 
-  console.log(`▶️  Resuming ${tasksToRun.length} tasks...\n`);
+  console.log(`Resuming ${tasksToRun.length} tasks...\n`);
   const results = await runPlan(tasksToRun, config, state, STATE_DIR, cwd, makeDeps(terminal));
 
   if (terminal) await terminal.cleanup();

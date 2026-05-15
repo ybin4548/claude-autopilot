@@ -95,8 +95,8 @@ function ask(rl: ReturnType<typeof createInterface>, question: string): Promise<
 export async function runConfigWizard(): Promise<AutopilotConfig> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-  console.log('\n🚀 Welcome to claude-autopilot!');
-  console.log('   Let\'s configure your preferences.\n');
+  console.log('\nWelcome to claude-autopilot!');
+  console.log('Let\'s configure your preferences.\n');
 
   const config = JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as Record<string, unknown>;
 
@@ -140,8 +140,8 @@ export async function runConfigWizard(): Promise<AutopilotConfig> {
   await mkdir(CONFIG_DIR, { recursive: true });
   await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
 
-  console.log(`✅ Configuration saved to ${CONFIG_PATH}`);
-  console.log('   You can change these anytime with: claude-autopilot config\n');
+  console.log(`Configuration saved to ${CONFIG_PATH}`);
+  console.log('You can change these anytime with: claude-autopilot config\n');
 
   return config as unknown as AutopilotConfig;
 }
@@ -167,5 +167,5 @@ export async function setConfigValue(keyValue: string): Promise<void> {
   await mkdir(CONFIG_DIR, { recursive: true });
   await writeFile(CONFIG_PATH, JSON.stringify(obj, null, 2), 'utf-8');
 
-  console.log(`✅ Set ${key} = ${value}`);
+  console.log(`Set ${key} = ${value}`);
 }

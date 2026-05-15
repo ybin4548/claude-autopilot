@@ -35,7 +35,7 @@ export class MacosTerminalAdapter implements TerminalAdapter {
     if (!pane) return;
 
     const cdCmd = `cd '${pane.cwd.replace(/'/g, "'\\''")}'`;
-    const fullCommand = `${cdCmd} && echo '🔄 [${pane.taskId}] Starting...' && ${command}; echo $? > '${pane.markerPath}'`;
+    const fullCommand = `${cdCmd} && echo '[${pane.taskId}] Starting...' && ${command}; echo $? > '${pane.markerPath}'`;
     const escaped = escapeForAppleScript(fullCommand);
 
     const script = `
