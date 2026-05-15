@@ -1,11 +1,11 @@
 {
-  "name": "claude-auto-pilot",
+  "name": "@ybin4548/claude-autopilot",
   "version": "1.0.0",
   "description": "Fully automated development orchestrator — from plan to PR with zero human intervention",
   "type": "module",
   "bin": {
-    "claude-auto-pilot": "dist/cli.js",
-    "claude-auto-pilot-mcp": "dist/mcp-server.js"
+    "claude-autopilot": "dist/cli.js",
+    "claude-autopilot-mcp": "dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsup",
@@ -15,7 +15,7 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "start": "node dist/cli.js",
-    "postinstall": "claude-auto-pilot init"
+    "postinstall": "claude-autopilot init"
   },
   "keywords": [
     "claude-code",
